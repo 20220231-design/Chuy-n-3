@@ -634,6 +634,143 @@ def ve_xu_the_the_loai_doanh_thu_nam(df_tc: pd.DataFrame, top_n: int = 5) -> go.
     return fig
 
 
+# ============================================================
+# PHAN 4: MO HINH DU DOAN
+# ============================================================
+
+def chuan_bi_features(df_tc: pd.DataFrame, target: str) -> tuple:
+    """Chuan bi feature matrix X va target vector y cho mo hinh."""
+    top_g = phan_tich_the_loai(df_tc, 10).index.tolist()
+
+    for g in top_g:
+        col_name = f"genre_{g.replace(' ', '_')}"
+        df_tc[col_name] = df_tc["genres_list"].apply(lambda lst: 1 if g in lst else 0)
+
+    genre_cols = [f"genre_{g.replace(' ', '_')}" for g in top_g]
+    base_features = ["budget", "runtime", "popularity", "release_year"]
+    if "vote_count" in df_tc.columns:
+        base_features.append("vote_count")
+
+    if target == "revenue":
+        feature_cols = base_features + ["vote_average"] + genre_cols
+    else:
+        feature_cols = base_features + ["revenue"] + genre_cols
+
+    feature_cols = [c for c in feature_cols if c in df_tc.columns]
+    X = df_tc[feature_cols].fillna(df_tc[feature_cols].median(numeric_only=True))
+    y = df_tc[target]
+
+    return X, y, feature_cols
+
+
+def huan_luyen_mo_hinh(X, y):
+    """
+    Huan luyen LinearRegression va RandomForestRegressor.
+    Tra ve dict ket qua danh gia (MAE, RMSE, R2) va model da train.
+    """
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    ket_qua = {}
+
+    # Linear Regression
+    lr = LinearRegression()
+    lr.fit(X_train, y_train)
+    y_pred_lr = lr.predict(X_test)
+    ket_qua["LinearRegression"] = {
+        "MAE": mean_absolute_error(y_test, y_pred_lr),
+        "RMSE": np.sqrt(mean_squared_error(y_test, y_pred_lr)),
+        "R2": r2_score(y_test, y_pred_lr),
+        "y_test": y_test.values,
+        "y_pred": y_pred_lr,
+        "model": lr,
+    }
+
+    # Random Forest
+    rf = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
+    rf.fit(X_train, y_train)
+    y_pred_rf = rf.predict(X_test)
+    ket_qua["RandomForest"] = {
+        "MAE": mean_absolute_error(y_test, y_pred_rf),
+        "RMSE": np.sqrt(mean_squared_error(y_test, y_pred_rf)),
+        "R2": r2_score(y_test, y_pred_rf),
+        "y_test": y_test.values,
+        "y_pred": y_pred_rf,
+        "model": rf,
+        "feature_importance": pd.Series(
+            rf.feature_importances_, index=X.columns
+        ).sort_values(ascending=False),
+    }
+
+    return ket_qua
+
+
+def ve_ket_qua_mo_hinh(ket_qua: dict, target_label: str, ten_file_prefix: str) -> go.Figure:
+    """Ve bieu do Actual vs Predicted cho ca 2 mo hinh."""
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=("Linear Regression", "Random Forest"),
+    )
+    colors = {"LinearRegression": "#636EFA", "RandomForest": "#EF553B"}
+
+    for i, (ten, res) in enumerate(ket_qua.items(), 1):
+        y_test, y_pred = res["y_test"], res["y_pred"]
+        fig.add_trace(go.Scatter(
+            x=y_test, y=y_pred,
+            mode="markers",
+            marker=dict(color=colors[ten], size=5, opacity=0.6),
+            name=ten,
+        ), row=1, col=i)
+        mn = min(y_test.min(), y_pred.min())
+        mx = max(y_test.max(), y_pred.max())
+        fig.add_trace(go.Scatter(
+            x=[mn, mx], y=[mn, mx],
+            mode="lines",
+            line=dict(color="black", dash="dash", width=1.5),
+            showlegend=False,
+        ), row=1, col=i)
+
+    fig.update_layout(
+        title=f"Thực tế vs Dự đoán - {target_label}",
+        height=420,
+        xaxis_title="Thực tế", yaxis_title="Dự đoán",
+        xaxis2_title="Thực tế", yaxis2_title="Dự đoán",
+    )
+
+    fig_mpl, axes = plt.subplots(1, 2, figsize=(12, 5))
+    for ax, (ten, res) in zip(axes, ket_qua.items()):
+        ax.scatter(res["y_test"], res["y_pred"], alpha=0.5, s=15,
+                   color=colors[ten], edgecolors="none")
+        mn = min(res["y_test"].min(), res["y_pred"].min())
+        mx = max(res["y_test"].max(), res["y_pred"].max())
+        ax.plot([mn, mx], [mn, mx], "k--", linewidth=1.5)
+        ax.set_xlabel("Thực tế", fontsize=10)
+        ax.set_ylabel("Dự đoán", fontsize=10)
+        ax.set_title(f"{ten}\nR2={res['R2']:.3f}", fontsize=11, fontweight="bold")
+        ax.spines[["top", "right"]].set_visible(False)
+    plt.suptitle(f"Thực tế vs Dự đoán - {target_label}", fontsize=13, fontweight="bold")
+    plt.tight_layout()
+    luu_hinh(fig_mpl, f"prediction_{ten_file_prefix}.png")
+
+    return fig
+
+
+def ve_feature_importance(ket_qua_rf: dict, top_n: int = 10) -> go.Figure:
+    """Bieu do feature importance cua RandomForest."""
+    fi = ket_qua_rf["feature_importance"].head(top_n)
+    fig = px.bar(
+        x=fi.values,
+        y=fi.index,
+        orientation="h",
+        color=fi.values,
+        color_continuous_scale="Oranges",
+        labels={"x": "Mức độ quan trọng", "y": "Đặc trưng"},
+        title="Độ Quan Trọng Của Đặc Trưng (Random Forest)",
+    )
+    fig.update_layout(yaxis={"categoryorder": "total ascending"},
+                      coloraxis_showscale=False, height=380)
+    return fig
 
 # ============================================================
 # ENTRY POINT
