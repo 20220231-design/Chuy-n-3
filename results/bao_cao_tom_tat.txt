@@ -1,0 +1,38 @@
+============================================================
+BAO CAO PHAN TICH DU LIEU PHIM - TMDB 5000
+Ngay tao: 2026-04-20 22:17:20
+============================================================
+
+Tong so phim (sau lam sach): 4716
+Phim co du lieu tai chinh: 3227
+Khoang nam: 1916 - 2017
+
+--- THONG KE CHINH ---
+             budget       revenue  vote_average      runtime   popularity
+count  4.716000e+03  4.716000e+03   4716.000000  4716.000000  4716.000000
+mean   2.957478e+07  8.377762e+07      6.178181   107.803647    21.884362
+std    4.090675e+07  1.639657e+08      0.960250    20.713038    31.976354
+min    0.000000e+00  0.000000e+00      0.500000    14.000000     0.000372
+25%    1.000000e+06  0.000000e+00      5.600000    94.000000     5.062292
+50%    1.500000e+07  2.036248e+07      6.200000   104.000000    13.419173
+75%    4.000000e+07  9.505252e+07      6.800000   118.000000    28.801016
+max    3.800000e+08  2.787965e+09     10.000000   338.000000   875.581305
+
+--- TOP 10 THE LOAI PHO BIEN ---
+  Drama: 2268 phim
+  Comedy: 1704 phim
+  Thriller: 1262 phim
+  Action: 1148 phim
+  Romance: 890 phim
+  Adventure: 789 phim
+  Crime: 688 phim
+  Science Fiction: 534 phim
+  Family: 509 phim
+  Horror: 505 phim
+
+--- KET QUA MO HINH DU DOAN ---
+         Mo_hinh       Target          MAE         RMSE       R2
+LinearRegression      Revenue 6.637824e+07 1.315132e+08 0.664603
+    RandomForest      Revenue 5.587787e+07 1.185061e+08 0.727666
+LinearRegression Vote_Average 5.094116e-01 6.639376e-01 0.449429
+    RandomForest Vote_Average 4.412709e-01 5.811569e-01 0.578162
