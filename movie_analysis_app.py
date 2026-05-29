@@ -820,6 +820,151 @@ def luu_ket_qua(df, df_tc, ket_qua_rev, ket_qua_rat, dem_genres):
 
 
 # ============================================================
+# PHAN 6: STREAMLIT APP - GIAO DIEN CHINH
+# ============================================================
+
+def main():
+    st.markdown('<h1 class="main-header">Phân Tích Dữ Liệu Phim</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Rating · Doanh Thu · Thể Loại — TMDB 5000 Movies Dataset</p>', unsafe_allow_html=True)
+
+    with st.spinner("Đang tải và làm sạch dữ liệu..."):
+        df_raw = tai_du_lieu("data/tmdb_5000_movies.csv")
+        df = lam_sach_du_lieu(df_raw)
+        df_tc = tao_df_tai_chinh(df)
+
+    # ---- SIDEBAR ----
+    st.sidebar.title("Bộ Lọc Dữ Liệu")
+    st.sidebar.markdown("---")
+
+    nam_min = int(df["release_year"].min())
+    nam_max = int(df["release_year"].max())
+    nam_range = st.sidebar.slider(
+        "Khoảng năm phát hành",
+        min_value=nam_min, max_value=nam_max,
+        value=(2000, nam_max),
+    )
+
+    bud_max = int(df_tc["budget"].max())
+    bud_range = st.sidebar.slider(
+        "Ngân sách (triệu USD)",
+        min_value=0, max_value=int(bud_max / 1e6),
+        value=(0, int(bud_max / 1e6)),
+    )
+
+    tat_ca_genres = sorted(set(g for lst in df["genres_list"] for g in lst if g))
+    genres_chon = st.sidebar.multiselect(
+        "Chọn thể loại phim",
+        options=tat_ca_genres,
+        default=[],
+        placeholder="Tất cả thể loại...",
+    )
+
+    rating_min = st.sidebar.slider("Rating tối thiểu", 0.0, 10.0, 5.0, 0.1)
+
+    st.sidebar.markdown("---")
+    st.sidebar.info(f"**Tổng dữ liệu:** {len(df):,} phim\n\n**Có tài chính:** {len(df_tc):,} phim")
+
+    # ---- AP DUNG BO LOC ----
+    mask = (
+        (df["release_year"] >= nam_range[0]) &
+        (df["release_year"] <= nam_range[1]) &
+        (df["vote_average"] >= rating_min)
+    )
+    if genres_chon:
+        mask &= df["genres_list"].apply(lambda lst: any(g in lst for g in genres_chon))
+    df_filtered = df[mask].copy()
+
+    mask_tc = (
+        (df_tc["release_year"] >= nam_range[0]) &
+        (df_tc["release_year"] <= nam_range[1]) &
+        (df_tc["vote_average"] >= rating_min) &
+        (df_tc["budget"] >= bud_range[0] * 1e6) &
+        (df_tc["budget"] <= bud_range[1] * 1e6)
+    )
+    if genres_chon:
+        mask_tc &= df_tc["genres_list"].apply(lambda lst: any(g in lst for g in genres_chon))
+    df_tc_filtered = df_tc[mask_tc].copy()
+
+    # ============================================================
+    # TABS
+    # ============================================================
+    tab_overview, tab_genre, tab_financial, tab_topphim, tab_model = st.tabs([
+        "Tổng Quan",
+        "Thể Loại",
+        "Tài Chính",
+        "Top Phim",
+        "Mô Hình ML",
+    ])
+
+    # ============================================================
+    # TAB 1: TONG QUAN
+    # ============================================================
+    with tab_overview:
+        st.markdown('<p class="section-title">Tổng Quan Dữ Liệu</p>', unsafe_allow_html=True)
+
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric("Số phim", f"{len(df_filtered):,}")
+        col2.metric("Rating TB", f"{df_filtered['vote_average'].mean():.2f}")
+        col3.metric("Doanh thu TB", f"${df_tc_filtered['revenue'].mean()/1e6:.1f}M" if len(df_tc_filtered) > 0 else "N/A")
+        col4.metric("Số thể loại", f"{len(tat_ca_genres)}")
+        col5.metric("Khoảng năm",
+                    f"{df_filtered['release_year'].min() if len(df_filtered) > 0 else '-'}"
+                    f"-{df_filtered['release_year'].max() if len(df_filtered) > 0 else '-'}")
+
+        st.markdown("---")
+
+        col_left, col_right = st.columns(2)
+        with col_left:
+            st.subheader("Thống Kê Mô Tả")
+            stats_show = df_filtered[["budget", "revenue", "vote_average", "runtime", "popularity"]].describe()
+            stats_show.columns = ["Ngân sách", "Doanh thu", "Rating", "Thời lượng", "Độ phổ biến"]
+            st.dataframe(stats_show.round(2), use_container_width=True)
+
+        with col_right:
+            st.subheader("Phân Phối Rating")
+            fig_hist = ve_phan_phoi_rating(df_filtered)
+            st.plotly_chart(fig_hist, use_container_width=True)
+
+        with st.expander("Xem dữ liệu mẫu (10 phim)"):
+            show_cols = ["title", "release_year", "genres_str", "budget",
+                         "revenue", "vote_average", "runtime", "popularity"]
+            show_cols = [c for c in show_cols if c in df_filtered.columns]
+            st.dataframe(df_filtered[show_cols].head(10), use_container_width=True)
+
+    # ============================================================
+    # TAB 2: THE LOAI
+    # ============================================================
+    with tab_genre:
+        st.markdown('<p class="section-title">Phân Tích Thể Loại Phim</p>', unsafe_allow_html=True)
+
+        dem_genres = phan_tich_the_loai(df_filtered, 10)
+
+        col_l, col_r = st.columns(2)
+        with col_l:
+            fig_genre_bar = ve_genre_popular(dem_genres)
+            st.plotly_chart(fig_genre_bar, use_container_width=True)
+        with col_r:
+            fig_genre_pie = ve_pie_genres(dem_genres)
+            st.plotly_chart(fig_genre_pie, use_container_width=True)
+
+        st.markdown("---")
+        st.markdown('<p class="section-title">Xu Thế Thể Loại Phim Theo Năm</p>', unsafe_allow_html=True)
+
+        fig_xu_the_genre = ve_xu_the_the_loai_theo_nam(df_filtered, top_n=5)
+        st.plotly_chart(fig_xu_the_genre, use_container_width=True)
+
+        st.markdown("---")
+        st.markdown('<p class="section-title">Doanh Thu Theo Thể Loại</p>', unsafe_allow_html=True)
+
+        col_dl, col_dr = st.columns(2)
+        with col_dl:
+            fig_dt_genre = ve_doanh_thu_trung_binh_theo_the_loai(df_tc_filtered if len(df_tc_filtered) >= 10 else df_tc)
+            st.plotly_chart(fig_dt_genre, use_container_width=True)
+        with col_dr:
+            fig_dt_genre_nam = ve_xu_the_the_loai_doanh_thu_nam(df_tc_filtered if len(df_tc_filtered) >= 10 else df_tc, top_n=5)
+            st.plotly_chart(fig_dt_genre_nam, use_container_width=True)
+
+# ============================================================
 # ENTRY POINT
 # ============================================================
 if __name__ == "__main__":
