@@ -964,6 +964,105 @@ def main():
             fig_dt_genre_nam = ve_xu_the_the_loai_doanh_thu_nam(df_tc_filtered if len(df_tc_filtered) >= 10 else df_tc, top_n=5)
             st.plotly_chart(fig_dt_genre_nam, use_container_width=True)
 
+    # ============================================================
+    # TAB 3: TAI CHINH
+    # ============================================================
+    with tab_financial:
+        st.markdown('<p class="section-title">Phân Tích Tài Chính</p>', unsafe_allow_html=True)
+
+        if len(df_tc_filtered) < 10:
+            st.warning("Không đủ dữ liệu tài chính. Hãy nới rộng bộ lọc.")
+        else:
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Tổng doanh thu", f"${df_tc_filtered['revenue'].sum()/1e9:.1f}B")
+            col2.metric("ROI trung bình", f"{df_tc_filtered['roi'].mean()*100:.1f}%")
+            col3.metric("Số phim", f"{len(df_tc_filtered):,}")
+
+            fig_scatter = ve_scatter_rating_revenue(df_tc_filtered)
+            st.plotly_chart(fig_scatter, use_container_width=True)
+
+            fig_nam = ve_revenue_theo_nam(df_tc_filtered)
+            st.plotly_chart(fig_nam, use_container_width=True)
+
+            st.markdown("---")
+            st.markdown('<p class="section-title">Dự Báo Xu Thế Doanh Thu Tương Lai</p>', unsafe_allow_html=True)
+            fig_du_bao = ve_xu_the_doanh_thu_du_bao(df_tc_filtered, so_nam_du_bao=5)
+            st.plotly_chart(fig_du_bao, use_container_width=True)
+
+            fig_heatmap = ve_heatmap_tuong_quan(df_tc_filtered)
+            st.plotly_chart(fig_heatmap, use_container_width=True)
+
+    # ============================================================
+    # TAB 4: TOP PHIM
+    # ============================================================
+    with tab_topphim:
+        st.markdown('<p class="section-title">Top Phim Nổi Bật</p>', unsafe_allow_html=True)
+
+        col_left, col_right = st.columns(2)
+        with col_left:
+            fig_top_rev = ve_top_doanh_thu(df_tc_filtered if len(df_tc_filtered) >= 10 else df_tc)
+            st.plotly_chart(fig_top_rev, use_container_width=True)
+        with col_right:
+            fig_top_rat = ve_top_rating(df_filtered)
+            st.plotly_chart(fig_top_rat, use_container_width=True)
+
+        fig_top_pop = ve_top_popularity(df_filtered)
+        st.plotly_chart(fig_top_pop, use_container_width=True)
+
+    # ============================================================
+    # TAB 5: MO HINH ML
+    # ============================================================
+    with tab_model:
+        st.markdown('<p class="section-title">Mô Hình Dự Đoán Machine Learning</p>', unsafe_allow_html=True)
+
+        if st.button("Huấn Luyện Mô Hình", type="primary"):
+            df_train = df_tc
+
+            with st.spinner("Đang huấn luyện... vui lòng chờ"):
+                X_rev, y_rev, _ = chuan_bi_features(df_train.copy(), "revenue")
+                ket_qua_rev = huan_luyen_mo_hinh(X_rev, y_rev)
+
+                X_rat, y_rat, _ = chuan_bi_features(df_train.copy(), "vote_average")
+                ket_qua_rat = huan_luyen_mo_hinh(X_rat, y_rat)
+
+            st.success("Huấn luyện hoàn thành!")
+
+            # Bang ket qua tong hop
+            st.subheader("Kết Quả Đánh Giá Mô Hình")
+            rows_eval = []
+            for ten, res in ket_qua_rev.items():
+                rows_eval.append({"Mô hình": ten, "Target": "Doanh thu (Revenue)",
+                                  "MAE": f"{res['MAE']:,.0f}", "RMSE": f"{res['RMSE']:,.0f}",
+                                  "R2": f"{res['R2']:.4f}"})
+            for ten, res in ket_qua_rat.items():
+                rows_eval.append({"Mô hình": ten, "Target": "Rating (vote_average)",
+                                  "MAE": f"{res['MAE']:.4f}", "RMSE": f"{res['RMSE']:.4f}",
+                                  "R2": f"{res['R2']:.4f}"})
+            st.dataframe(pd.DataFrame(rows_eval), use_container_width=True, hide_index=True)
+
+            # Bieu do Actual vs Predicted
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                st.subheader("Dự Đoán Doanh Thu")
+                fig_pred_rev = ve_ket_qua_mo_hinh(ket_qua_rev, "Doanh thu", "revenue")
+                st.plotly_chart(fig_pred_rev, use_container_width=True)
+                fig_fi_rev = ve_feature_importance(ket_qua_rev["RandomForest"])
+                st.plotly_chart(fig_fi_rev, use_container_width=True)
+
+            with col_m2:
+                st.subheader("Dự Đoán Rating")
+                fig_pred_rat = ve_ket_qua_mo_hinh(ket_qua_rat, "Rating", "rating")
+                st.plotly_chart(fig_pred_rat, use_container_width=True)
+                fig_fi_rat = ve_feature_importance(ket_qua_rat["RandomForest"])
+                st.plotly_chart(fig_fi_rat, use_container_width=True)
+
+            # Luu ket qua
+            dem_genres_save = phan_tich_the_loai(df, 10)
+            luu_ket_qua(df, df_tc, ket_qua_rev, ket_qua_rat, dem_genres_save)
+            st.success("Đã lưu kết quả vào thư mục results/ và biểu đồ vào images/")
+        else:
+            st.markdown("Nhấn nút **Huấn Luyện Mô Hình** để xem kết quả.")
+
 # ============================================================
 # ENTRY POINT
 # ============================================================
