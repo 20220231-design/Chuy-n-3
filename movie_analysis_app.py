@@ -147,6 +147,449 @@ def phan_tich_the_loai(df: pd.DataFrame, top_n: int = 10) -> pd.Series:
     return tat_ca.value_counts().head(top_n)
 
 
+# ============================================================
+# PHAN 3: TRUC QUAN HOA
+# ============================================================
+
+def luu_hinh(fig_mpl, ten_file: str):
+    """Luu matplotlib figure ra thu muc images/ duoi dang PNG."""
+    duong_dan = os.path.join("images", ten_file)
+    fig_mpl.savefig(duong_dan, dpi=150, bbox_inches="tight",
+                    facecolor="white", edgecolor="none")
+    plt.close(fig_mpl)
+
+
+def ve_genre_popular(dem_genres: pd.Series) -> go.Figure:
+    """Bieu do cot ngang: Top 10 the loai pho bien nhat."""
+    fig = px.bar(
+        x=dem_genres.values,
+        y=dem_genres.index,
+        orientation="h",
+        color=dem_genres.values,
+        color_continuous_scale="Reds",
+        labels={"x": "Số lượng phim", "y": "Thể loại"},
+        title="Top 10 Thể Loại Phim Phổ Biến Nhất",
+        text=dem_genres.values,
+    )
+    fig.update_traces(textposition="outside")
+    fig.update_layout(yaxis={"categoryorder": "total ascending"},
+                      coloraxis_showscale=False, height=450)
+
+    fig_mpl, ax = plt.subplots(figsize=(10, 6))
+    colors = plt.cm.Reds(np.linspace(0.4, 0.9, len(dem_genres)))
+    bars = ax.barh(dem_genres.index[::-1], dem_genres.values[::-1], color=colors[::-1])
+    ax.bar_label(bars, padding=3, fontsize=9)
+    ax.set_xlabel("Số lượng phim", fontsize=11)
+    ax.set_title("Top 10 Thể Loại Phim Phổ Biến Nhất", fontsize=13, fontweight="bold")
+    ax.spines[["top", "right"]].set_visible(False)
+    plt.tight_layout()
+    luu_hinh(fig_mpl, "genre_popular.png")
+
+    return fig
+
+
+def ve_top_doanh_thu(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
+    """Bieu do cot: Top 10 phim doanh thu cao nhat."""
+    df_top = df.nlargest(top_n, "revenue")[["title", "revenue", "release_year"]].copy()
+    df_top["revenue_ty"] = df_top["revenue"] / 1e9
+
+    fig = px.bar(
+        df_top,
+        x="revenue_ty",
+        y="title",
+        orientation="h",
+        color="revenue_ty",
+        color_continuous_scale="OrRd",
+        text=df_top["revenue_ty"].apply(lambda x: f"${x:.2f}B"),
+        labels={"revenue_ty": "Doanh thu (tỷ USD)", "title": "Phim"},
+        title="Top 10 Phim Doanh Thu Cao Nhất",
+        hover_data={"release_year": True},
+    )
+    fig.update_traces(textposition="outside")
+    fig.update_layout(yaxis={"categoryorder": "total ascending"},
+                      coloraxis_showscale=False, height=450)
+
+    fig_mpl, ax = plt.subplots(figsize=(11, 6))
+    titles_short = [t[:30] + "..." if len(t) > 30 else t for t in df_top["title"]]
+    colors = plt.cm.OrRd(np.linspace(0.4, 0.9, top_n))
+    bars = ax.barh(titles_short[::-1], df_top["revenue_ty"].values[::-1], color=colors[::-1])
+    ax.bar_label(bars, fmt="$%.2fB", padding=3, fontsize=9)
+    ax.set_xlabel("Doanh thu (tỷ USD)", fontsize=11)
+    ax.set_title("Top 10 Phim Doanh Thu Cao Nhất", fontsize=13, fontweight="bold")
+    ax.spines[["top", "right"]].set_visible(False)
+    plt.tight_layout()
+    luu_hinh(fig_mpl, "top_revenue.png")
+
+    return fig
+
+
+def ve_top_rating(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
+    """Bieu do cot: Top 10 phim rating cao nhat (vote_count >= 100)."""
+    df_filter = df[df["vote_count"] >= 100] if "vote_count" in df.columns else df
+    df_top = df_filter.nlargest(top_n, "vote_average")[
+        ["title", "vote_average", "release_year"]
+    ].copy()
+
+    fig = px.bar(
+        df_top,
+        x="vote_average",
+        y="title",
+        orientation="h",
+        color="vote_average",
+        color_continuous_scale="Greens",
+        text=df_top["vote_average"].apply(lambda x: f"{x:.1f}"),
+        labels={"vote_average": "Điểm đánh giá", "title": "Phim"},
+        title="Top 10 Phim Rating Cao Nhất",
+        range_color=[6, 10],
+    )
+    fig.update_traces(textposition="outside")
+    fig.update_layout(yaxis={"categoryorder": "total ascending"},
+                      coloraxis_showscale=False, height=450,
+                      xaxis=dict(range=[0, 11]))
+
+    fig_mpl, ax = plt.subplots(figsize=(11, 6))
+    titles_short = [t[:30] + "..." if len(t) > 30 else t for t in df_top["title"]]
+    colors = plt.cm.Greens(np.linspace(0.5, 0.9, top_n))
+    bars = ax.barh(titles_short[::-1], df_top["vote_average"].values[::-1], color=colors[::-1])
+    ax.bar_label(bars, fmt="%.1f", padding=3, fontsize=9)
+    ax.set_xlabel("Điểm đánh giá (0-10)", fontsize=11)
+    ax.set_title("Top 10 Phim Rating Cao Nhất", fontsize=13, fontweight="bold")
+    ax.set_xlim(0, 11)
+    ax.spines[["top", "right"]].set_visible(False)
+    plt.tight_layout()
+    luu_hinh(fig_mpl, "top_rating.png")
+
+    return fig
+
+
+def ve_top_popularity(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
+    """Bieu do cot: Top 10 phim popularity cao nhat."""
+    df_top = df.nlargest(top_n, "popularity")[["title", "popularity", "release_year"]].copy()
+
+    fig = px.bar(
+        df_top,
+        x="popularity",
+        y="title",
+        orientation="h",
+        color="popularity",
+        color_continuous_scale="Blues",
+        text=df_top["popularity"].apply(lambda x: f"{x:.1f}"),
+        labels={"popularity": "Độ phổ biến", "title": "Phim"},
+        title="Top 10 Phim Phổ Biến Nhất (Popularity)",
+    )
+    fig.update_traces(textposition="outside")
+    fig.update_layout(yaxis={"categoryorder": "total ascending"},
+                      coloraxis_showscale=False, height=450)
+
+    fig_mpl, ax = plt.subplots(figsize=(11, 6))
+    titles_short = [t[:30] + "..." if len(t) > 30 else t for t in df_top["title"]]
+    colors = plt.cm.Blues(np.linspace(0.4, 0.9, top_n))
+    bars = ax.barh(titles_short[::-1], df_top["popularity"].values[::-1], color=colors[::-1])
+    ax.bar_label(bars, fmt="%.1f", padding=3, fontsize=9)
+    ax.set_xlabel("Độ phổ biến", fontsize=11)
+    ax.set_title("Top 10 Phim Phổ Biến Nhất", fontsize=13, fontweight="bold")
+    ax.spines[["top", "right"]].set_visible(False)
+    plt.tight_layout()
+    luu_hinh(fig_mpl, "top_popularity.png")
+
+    return fig
+
+
+def ve_scatter_rating_revenue(df_tc: pd.DataFrame) -> go.Figure:
+    """Scatter plot: Moi quan he giua vote_average va revenue."""
+    fig = px.scatter(
+        df_tc,
+        x="vote_average",
+        y="revenue",
+        color="budget",
+        size="popularity",
+        hover_name="title",
+        hover_data={"release_year": True, "genres_str": True},
+        color_continuous_scale="Viridis",
+        labels={
+            "vote_average": "Điểm đánh giá (Rating)",
+            "revenue": "Doanh thu (USD)",
+            "budget": "Ngân sách (USD)",
+        },
+        title="Mối Quan Hệ Giữa Rating và Doanh Thu",
+        log_y=True,
+        opacity=0.75,
+    )
+    fig.update_layout(height=500)
+
+    # Duong xu huong bang numpy polyfit
+    x_vals = df_tc["vote_average"].values
+    y_vals = np.log10(df_tc["revenue"].values + 1)
+    if len(x_vals) > 2:
+        coef = np.polyfit(x_vals, y_vals, 1)
+        x_line = np.linspace(x_vals.min(), x_vals.max(), 100)
+        y_line = 10 ** np.polyval(coef, x_line)
+        fig.add_trace(go.Scatter(
+            x=x_line, y=y_line,
+            mode="lines",
+            line=dict(color="red", width=2, dash="dash"),
+            name="Xu hướng",
+        ))
+
+    fig_mpl, ax = plt.subplots(figsize=(10, 6))
+    sc = ax.scatter(
+        df_tc["vote_average"], df_tc["revenue"] / 1e6,
+        c=df_tc["budget"] / 1e6, cmap="viridis",
+        alpha=0.6, s=20, edgecolors="none",
+    )
+    plt.colorbar(sc, ax=ax, label="Ngân sách (triệu USD)")
+    ax.set_yscale("log")
+    ax.set_xlabel("Điểm đánh giá (Rating)", fontsize=11)
+    ax.set_ylabel("Doanh thu (triệu USD, thang log)", fontsize=11)
+    ax.set_title("Mối Quan Hệ Giữa Rating và Doanh Thu", fontsize=13, fontweight="bold")
+    ax.spines[["top", "right"]].set_visible(False)
+    plt.tight_layout()
+    luu_hinh(fig_mpl, "rating_vs_revenue.png")
+
+    return fig
+
+
+def ve_phan_phoi_rating(df: pd.DataFrame) -> go.Figure:
+    """Histogram phan phoi diem danh gia (vote_average)."""
+    fig = px.histogram(
+        df,
+        x="vote_average",
+        nbins=40,
+        color_discrete_sequence=["#E50914"],
+        labels={"vote_average": "Điểm đánh giá", "count": "Số phim"},
+        title="Phân Phối Điểm Đánh Giá (Rating)",
+    )
+    fig.add_vline(x=df["vote_average"].mean(), line_dash="dash",
+                  line_color="gold",
+                  annotation_text=f"TB: {df['vote_average'].mean():.2f}")
+    fig.update_layout(height=400)
+    return fig
+
+
+def ve_revenue_theo_nam(df_tc: pd.DataFrame) -> go.Figure:
+    """Bieu do duong: Tong doanh thu va so phim theo nam."""
+    theo_nam = df_tc.groupby("release_year").agg(
+        tong_revenue=("revenue", "sum"),
+        so_phim=("title", "count"),
+    ).reset_index()
+    theo_nam["revenue_ty"] = theo_nam["tong_revenue"] / 1e9
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig.add_trace(go.Bar(
+        x=theo_nam["release_year"], y=theo_nam["revenue_ty"],
+        name="Tổng doanh thu (tỷ USD)", marker_color="#E50914", opacity=0.75,
+    ), secondary_y=False)
+    fig.add_trace(go.Scatter(
+        x=theo_nam["release_year"], y=theo_nam["so_phim"],
+        name="Số phim", mode="lines+markers",
+        line=dict(color="gold", width=2),
+    ), secondary_y=True)
+    fig.update_layout(
+        title="Doanh Thu và Số Phim Theo Năm",
+        height=420,
+        xaxis_title="Năm",
+        legend=dict(x=0.01, y=0.99),
+    )
+    fig.update_yaxes(title_text="Tổng doanh thu (tỷ USD)", secondary_y=False)
+    fig.update_yaxes(title_text="Số phim", secondary_y=True)
+    return fig
+
+
+def ve_heatmap_tuong_quan(df_tc: pd.DataFrame) -> go.Figure:
+    """Heatmap ma tran tuong quan giua cac bien so."""
+    cols = ["budget", "revenue", "vote_average", "runtime", "popularity"]
+    cols_co = [c for c in cols if c in df_tc.columns]
+    corr = df_tc[cols_co].corr()
+
+    labels_vn = {
+        "budget": "Ngân sách",
+        "revenue": "Doanh thu",
+        "vote_average": "Rating",
+        "runtime": "Thời lượng",
+        "popularity": "Độ phổ biến",
+    }
+    idx = [labels_vn.get(c, c) for c in corr.index]
+
+    fig = px.imshow(
+        corr.values,
+        x=idx, y=idx,
+        color_continuous_scale="RdBu_r",
+        zmin=-1, zmax=1,
+        text_auto=".2f",
+        title="Ma Trận Tương Quan Giữa Các Biến",
+        aspect="auto",
+    )
+    fig.update_layout(height=450)
+
+    fig_mpl, ax = plt.subplots(figsize=(8, 6))
+    corr_plot = df_tc[cols_co].corr()
+    corr_plot.index = idx
+    corr_plot.columns = idx
+    sns.heatmap(corr_plot, annot=True, fmt=".2f", cmap="coolwarm",
+                center=0, ax=ax, linewidths=0.5, annot_kws={"size": 10})
+    ax.set_title("Ma Trận Tương Quan", fontsize=13, fontweight="bold")
+    plt.tight_layout()
+    luu_hinh(fig_mpl, "correlation_heatmap.png")
+
+    return fig
+
+
+def ve_pie_genres(dem_genres: pd.Series) -> go.Figure:
+    """Biểu đồ tròn tỷ lệ thể loại phim (Top 10)."""
+    fig = px.pie(
+        values=dem_genres.values,
+        names=dem_genres.index,
+        title="Tỷ Lệ Thể Loại Phim (Top 10)",
+        color_discrete_sequence=px.colors.qualitative.Set3,
+        hole=0.3,
+    )
+    fig.update_traces(textposition="inside", textinfo="percent+label")
+    fig.update_layout(height=450)
+    return fig
+
+
+def ve_xu_the_the_loai_theo_nam(df: pd.DataFrame, top_n: int = 5) -> go.Figure:
+    """Biểu đồ đường xu thế số lượng phim theo thể loại qua các năm."""
+    top_genres = phan_tich_the_loai(df, top_n).index.tolist()
+
+    rows = []
+    for _, row in df.iterrows():
+        for g in row["genres_list"]:
+            if g in top_genres:
+                rows.append({"release_year": row["release_year"], "genre": g})
+
+    if not rows:
+        return go.Figure()
+
+    df_long = pd.DataFrame(rows)
+    df_group = (
+        df_long.groupby(["release_year", "genre"])
+        .size()
+        .reset_index(name="so_phim")
+    )
+    df_group = df_group[df_group["release_year"] >= 1990]
+
+    fig = px.line(
+        df_group,
+        x="release_year",
+        y="so_phim",
+        color="genre",
+        markers=True,
+        labels={"release_year": "Năm", "so_phim": "Số lượng phim", "genre": "Thể loại"},
+        title=f"Xu Thế Số Lượng Phim Theo Thể Loại Qua Các Năm (Top {top_n})",
+    )
+    fig.update_layout(height=450, legend_title_text="Thể loại")
+    return fig
+
+
+def ve_doanh_thu_trung_binh_theo_the_loai(df_tc: pd.DataFrame, top_n: int = 10) -> go.Figure:
+    """Biểu đồ cột + đường doanh thu trung bình theo thể loại."""
+    rows = []
+    for _, row in df_tc.iterrows():
+        for g in row["genres_list"]:
+            if g:
+                rows.append({"genre": g, "revenue": row["revenue"]})
+
+    if not rows:
+        return go.Figure()
+
+    df_long = pd.DataFrame(rows)
+    df_group = (
+        df_long.groupby("genre")["revenue"]
+        .agg(["mean", "sum", "count"])
+        .reset_index()
+        .rename(columns={"mean": "dt_tb", "sum": "dt_tong", "count": "so_phim"})
+        .nlargest(top_n, "dt_tb")
+    )
+    df_group["dt_tb_ty"] = df_group["dt_tb"] / 1e6
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig.add_trace(go.Bar(
+        x=df_group["genre"],
+        y=df_group["dt_tb_ty"],
+        name="Doanh thu TB (triệu USD)",
+        marker_color="#E50914",
+        opacity=0.8,
+        text=df_group["dt_tb_ty"].apply(lambda x: f"${x:.0f}M"),
+        textposition="outside",
+    ), secondary_y=False)
+    fig.add_trace(go.Scatter(
+        x=df_group["genre"],
+        y=df_group["so_phim"],
+        name="Số phim",
+        mode="lines+markers",
+        line=dict(color="gold", width=2),
+        marker=dict(size=8),
+    ), secondary_y=True)
+    fig.update_layout(
+        title="Doanh Thu Trung Bình Theo Thể Loại Phim",
+        height=450,
+        xaxis_title="Thể loại",
+        legend=dict(x=0.01, y=0.99),
+    )
+    fig.update_yaxes(title_text="Doanh thu TB (triệu USD)", secondary_y=False)
+    fig.update_yaxes(title_text="Số phim", secondary_y=True)
+    return fig
+
+
+def ve_xu_the_doanh_thu_du_bao(df_tc: pd.DataFrame, so_nam_du_bao: int = 5) -> go.Figure:
+    """Biểu đồ đường xu thế doanh thu theo năm kèm dự báo tương lai."""
+    theo_nam = (
+        df_tc.groupby("release_year")["revenue"]
+        .sum()
+        .reset_index()
+    )
+    theo_nam["revenue_ty"] = theo_nam["revenue"] / 1e9
+    theo_nam = theo_nam[theo_nam["release_year"] >= 1990]
+
+    # Hồi quy tuyến tính để dự báo
+    X_fit = theo_nam["release_year"].values.reshape(-1, 1)
+    y_fit = theo_nam["revenue_ty"].values
+    model = LinearRegression()
+    model.fit(X_fit, y_fit)
+
+    nam_max = int(theo_nam["release_year"].max())
+    nam_du_bao = np.arange(nam_max + 1, nam_max + so_nam_du_bao + 1)
+    y_du_bao = model.predict(nam_du_bao.reshape(-1, 1))
+
+    # Đường xu thế toàn bộ
+    nam_all = np.arange(int(theo_nam["release_year"].min()), nam_max + 1)
+    y_trend = model.predict(nam_all.reshape(-1, 1))
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=theo_nam["release_year"],
+        y=theo_nam["revenue_ty"],
+        mode="lines+markers",
+        name="Doanh thu thực tế",
+        line=dict(color="#E50914", width=2),
+        marker=dict(size=6),
+    ))
+    fig.add_trace(go.Scatter(
+        x=nam_all,
+        y=y_trend,
+        mode="lines",
+        name="Đường xu thế (Linear)",
+        line=dict(color="orange", width=2, dash="dash"),
+    ))
+    fig.add_trace(go.Scatter(
+        x=nam_du_bao,
+        y=y_du_bao,
+        mode="lines+markers",
+        name=f"Dự báo {so_nam_du_bao} năm tới",
+        line=dict(color="royalblue", width=2, dash="dot"),
+        marker=dict(size=8, symbol="diamond"),
+    ))
+    fig.update_layout(
+        title="Xu Thế Doanh Thu Theo Năm và Dự Báo Tương Lai",
+        xaxis_title="Năm",
+        yaxis_title="Tổng doanh thu (tỷ USD)",
+        height=450,
+        legend=dict(x=0.01, y=0.99),
+    )
+    return fig
+
+
 
 
 
