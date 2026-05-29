@@ -591,6 +591,48 @@ def ve_xu_the_doanh_thu_du_bao(df_tc: pd.DataFrame, so_nam_du_bao: int = 5) -> g
 
 
 
+def ve_xu_the_the_loai_doanh_thu_nam(df_tc: pd.DataFrame, top_n: int = 5) -> go.Figure:
+    """Biểu đồ đường doanh thu trung bình theo thể loại qua các năm."""
+    top_genres = phan_tich_the_loai(df_tc, top_n).index.tolist()
+
+    rows = []
+    for _, row in df_tc.iterrows():
+        for g in row["genres_list"]:
+            if g in top_genres:
+                rows.append({
+                    "release_year": row["release_year"],
+                    "genre": g,
+                    "revenue": row["revenue"],
+                })
+
+    if not rows:
+        return go.Figure()
+
+    df_long = pd.DataFrame(rows)
+    df_group = (
+        df_long.groupby(["release_year", "genre"])["revenue"]
+        .mean()
+        .reset_index()
+    )
+    df_group = df_group[df_group["release_year"] >= 1990]
+    df_group["revenue_trieu"] = df_group["revenue"] / 1e6
+
+    fig = px.line(
+        df_group,
+        x="release_year",
+        y="revenue_trieu",
+        color="genre",
+        markers=True,
+        labels={
+            "release_year": "Năm",
+            "revenue_trieu": "Doanh thu TB (triệu USD)",
+            "genre": "Thể loại",
+        },
+        title=f"Xu Thế Doanh Thu Trung Bình Theo Thể Loại Qua Các Năm (Top {top_n})",
+    )
+    fig.update_layout(height=450, legend_title_text="Thể loại")
+    return fig
+
 
 
 # ============================================================
