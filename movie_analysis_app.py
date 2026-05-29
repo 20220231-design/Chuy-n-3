@@ -771,6 +771,53 @@ def ve_feature_importance(ket_qua_rf: dict, top_n: int = 10) -> go.Figure:
     fig.update_layout(yaxis={"categoryorder": "total ascending"},
                       coloraxis_showscale=False, height=380)
     return fig
+# ============================================================
+# PHAN 5: LUU KET QUA
+# ============================================================
+
+def luu_ket_qua(df, df_tc, ket_qua_rev, ket_qua_rat, dem_genres):
+    """Luu cac bang thong ke va ket qua mo hinh ra thu muc results/."""
+    stats = df[["budget", "revenue", "vote_average", "runtime", "popularity"]].describe()
+    stats.to_csv("results/thong_ke_tong_quat.csv")
+
+    df[["title", "release_year", "revenue", "vote_average", "popularity",
+        "genres_str"]].nlargest(50, "revenue").to_csv("results/top50_doanh_thu.csv", index=False)
+
+    df[["title", "release_year", "revenue", "vote_average", "popularity",
+        "genres_str"]].nlargest(50, "vote_average").to_csv("results/top50_rating.csv", index=False)
+
+    dem_genres.reset_index().rename(
+        columns={"genres_list": "the_loai", "count": "so_phim"}
+    ).to_csv("results/genre_popular.csv", index=False)
+
+    rows = []
+    for ten, res in ket_qua_rev.items():
+        rows.append({"Mo_hinh": ten, "Target": "Revenue",
+                     "MAE": res["MAE"], "RMSE": res["RMSE"], "R2": res["R2"]})
+    for ten, res in ket_qua_rat.items():
+        rows.append({"Mo_hinh": ten, "Target": "Vote_Average",
+                     "MAE": res["MAE"], "RMSE": res["RMSE"], "R2": res["R2"]})
+    df_models = pd.DataFrame(rows)
+    df_models.to_csv("results/ket_qua_mo_hinh.csv", index=False)
+
+    with open("results/bao_cao_tom_tat.txt", "w", encoding="utf-8") as f:
+        f.write("=" * 60 + "\n")
+        f.write("BAO CAO PHAN TICH DU LIEU PHIM - TMDB 5000\n")
+        f.write(f"Ngay tao: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write("=" * 60 + "\n\n")
+        f.write(f"Tong so phim (sau lam sach): {len(df)}\n")
+        f.write(f"Phim co du lieu tai chinh: {len(df_tc)}\n")
+        f.write(f"Khoang nam: {df['release_year'].min()} - {df['release_year'].max()}\n\n")
+        f.write("--- THONG KE CHINH ---\n")
+        f.write(stats.to_string() + "\n\n")
+        f.write("--- TOP 10 THE LOAI PHO BIEN ---\n")
+        for g, cnt in dem_genres.items():
+            f.write(f"  {g}: {cnt} phim\n")
+        f.write("\n--- KET QUA MO HINH DU DOAN ---\n")
+        f.write(df_models.to_string(index=False) + "\n")
+
+    return df_models
+
 
 # ============================================================
 # ENTRY POINT
